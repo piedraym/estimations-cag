@@ -1,0 +1,9 @@
+# Local variable and credentials
+.env
+.env.local
+
+# Virtual enviroment create by uv or python
+.venv/
+venv/
+env/
+
