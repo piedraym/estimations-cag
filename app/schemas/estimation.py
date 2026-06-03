@@ -1,14 +1,24 @@
 from pydantic import BaseModel, Field
 
-# aqui se vaida que la transcripcion tiene al menos 50 caracteres
+# aqui se valida que la transcripcion tiene al menos 50 caracteres
 class EstimationRequest(BaseModel):
-    transcription: str = Field(
-        ...,
-        min_legth = 50,
-        description = "Transcripcion de la reunion con el cliente"
-    )
+    """Incoming request containing a meeting transcription to estimate."""
+
+    transcription: str = Field(..., min_length=50, description="Meeting transcription text")
+
+
+class TokenUsage(BaseModel):
+    """Token consumption details from the LLM call."""
+
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
 
 class EstimationResponse(BaseModel):
-    estimation: str
-    model: str
-    provider: str
+    """Response containing the generated estimation and metadata."""
+
+    estimation: str = Field(..., description="Generated software estimation in markdown")
+    model: str = Field(..., description="LLM model used")
+    provider: str = Field(..., description="LLM provider used")
+    usage: TokenUsage
