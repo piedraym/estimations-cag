@@ -1,5 +1,3 @@
-# conecta todas la piezas
-
 import structlog
 from contextlib import asynccontextmanager
 
@@ -9,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routers import estimations
 
-
+# Depends of the enviroment configure the logs, JSON format to production, logs in  console in developments
 def configure_logging() -> None:
     """Set up structlog: JSON in production, human-readable in development."""
     settings = get_settings()
@@ -34,7 +32,7 @@ def configure_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
-
+# It is a FastAPI lifecycle hook. It runs when application start, activating the log and when application finish.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
@@ -55,6 +53,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# It allows requests from any origin ("*"), enabling external frontends to call the 
+# API. In production, it would be advisable to restrict the allowed origins.
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -65,7 +66,8 @@ app.add_middleware(
 
 app.include_router(estimations.router)
 
-
+# A health endpoint that returns the service status, version, and environment.
+# Useful for infrastructure health checks.
 @app.get("/health")
 async def health_check() -> dict:
     """Return service health status."""

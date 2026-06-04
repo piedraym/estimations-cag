@@ -8,5 +8,6 @@ dependencies = [
     "fastapi>=0.136.3",
     "openai>=2.38.0",
     "pydantic-settings>=2.14.1",
+    "structlog>=24.0.0",
     "uvicorn>=0.48.0",
 ]
