@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.schemas.estimation import EstimationRequest, EstimationResponse
 from app.services.llm_service import LLMServiceError, generate_estimation
+from fastapi.responses import StreamingResponse
 
 log = structlog.get_logger()
 
