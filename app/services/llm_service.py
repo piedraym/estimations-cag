@@ -1,4 +1,5 @@
 import structlog
+import litellm
 
 from app.config import get_settings
 from app.context.examples import ESTIMATION_EXAMPLES, format_examples_for_prompt
@@ -41,89 +42,41 @@ def generate_estimation(transcription: str) -> dict:
     settings = get_settings()
     system_prompt = build_system_prompt()
 
-    log.info("generating_estimation", provider=settings.LLM_PROVIDER, model=settings.LLM_MODEL)
+    log.info("generating_estimation", model=settings.LLM_MODEL)
 
     try:
-        if settings.LLM_PROVIDER == "openai":
-            return _call_openai(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": transcription},
-                ],
-            )
-        else:
-            return _call_anthropic(
-                system=system_prompt,
-                user_message=transcription,
-            )
+        response = litellm.completion(
+            model = settings.LLM_MODEL,
+            messages = [
+                {"role": "system", "content": build_system_prompt()},
+                {"role": "user", "content": transcription}
+            ],
+            max_tokens= MAX_TOKENS
+        )
+
+        usage = response.usage
+        provider = settings.LLM_MODEL.split("/")[0]
+
+        log.info( 
+            "llm_response_received",
+            model=response.model,
+            input_tokens = usage.prompt_tokens,
+            output_tokens = usage.completion_tokens,
+        )
+
+        return{
+            "estimation": response.choices[0].message.content,
+            "model": response.model,
+            "provider": provider,
+            "usage":{
+                "input_tokens": usage.prompt_tokens,
+                "output_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
+            },
+        }
+
     except LLMServiceError:
         raise
     except Exception as exc:
-        log.error("llm_call_failed", error=str(exc), provider=settings.LLM_PROVIDER)
+        log.error("llm_call_failed", error=str(exc), model=settings.LLM_MODEL)
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
-
-
-def _call_openai(messages: list[dict]) -> dict:
-    """Send a chat completion request to the OpenAI API."""
-    from openai import OpenAI
-
-    settings = get_settings()
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-
-    response = client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=messages,
-        max_tokens=MAX_TOKENS,
-    )
-
-    usage = response.usage
-    log.info(
-        "llm_response_received",
-        provider="openai",
-        input_tokens=usage.prompt_tokens,
-        output_tokens=usage.completion_tokens,
-    )
-
-    return {
-        "estimation": response.choices[0].message.content,
-        "model": response.model,
-        "provider": "openai",
-        "usage": {
-            "input_tokens": usage.prompt_tokens,
-            "output_tokens": usage.completion_tokens,
-            "total_tokens": usage.total_tokens,
-        },
-    }
-
-
-def _call_anthropic(system: str, user_message: str) -> dict:
-    """Send a message request to the Anthropic API."""
-    from anthropic import Anthropic
-
-    settings = get_settings()
-    client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-
-    response = client.messages.create(
-        model=settings.LLM_MODEL,
-        max_tokens=MAX_TOKENS,
-        system=system,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    log.info(
-        "llm_response_received",
-        provider="anthropic",
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
-    )
-
-    return {
-        "estimation": response.content[0].text,
-        "model": response.model,
-        "provider": "anthropic",
-        "usage": {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-            "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
-        },
-    }

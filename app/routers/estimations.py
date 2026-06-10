@@ -17,8 +17,8 @@ router = APIRouter(prefix="/api/v1", tags=["estimations"])
 # 2. Delegates the actual work to `generate_estimation()` in the service layer.
 # 3. If the LLM service fails, catches the error and returns an HTTP 500 with the error message.
 # 4. If successful, returns the response formatted as an EstimationResponse.
-@router.post("/estimate", response_model=EstimationResponse)
-async def create_estimation(request: EstimationRequest) -> EstimationResponse:
+@router.post("/estimate")
+def create_estimation(request: EstimationRequest) -> StreamingResponse:
     """Receive a meeting transcription and return a software project estimation."""
     try:
         result = generate_estimation(request.transcription)
