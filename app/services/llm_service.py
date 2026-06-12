@@ -92,28 +92,36 @@ def generate_estimation(transcription: str) -> dict:
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
 
 
-def generate_estimation_stream(transcription: str) -> Iterator[str]:
+def start_estimation_stream(transcription: str) -> tuple:
     settings = get_settings()
     log.info("generate_estimation_stream", model= settings.LLM_MODEL)
 
-    try:
-        response = litellm.completion(
-            model = settings.LLM_MODEL,
-            messages= [
-                {"role": "system", "content": build_system_prompt()},
-                {"role": "user", "content": transcription},
-            ],
-            max_tokens=MAX_TOKENS,
-            num_retries=2,
-            fallbacks=[settings.LLM_FALLBACK_MODEL] if settings.LLM_FALLBACK_MODEL else None,
-            stream=True,
-        )
+    response = litellm.completion(
+        model = settings.LLM_MODEL,
+        messages= [
+            {"role": "system", "content": build_system_prompt()},
+            {"role": "user", "content": transcription},
+        ],
+        max_tokens=MAX_TOKENS,
+        num_retries=2,
+        fallbacks=[settings.LLM_FALLBACK_MODEL] if settings.LLM_FALLBACK_MODEL else None,
+        stream=True,
+        caching=True,
+        ttl=settings.CACHE_TTL_SECONDS,
+    )
 
+    cache_hit= response._hidden_params.get("cache_hit", False)
+    log.info("llm_strean_cache_check", cache_hit=cache_hit, model=settings.LLM_MODEL)
+    return response, cache_hit
+
+def iter_estimation_chunks(response)-> Iterator[str]:
+    try:
         for chunk in response:
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
-
     except Exception as exc:
-        log.error("llm_stream_failed", error=str(exc), model=settings.LLM_MODEL)
+        log.error("llm_stream_failed", error=str(exc))
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
+
+

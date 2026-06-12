@@ -8,7 +8,7 @@ import json
 from sse_starlette.sse import EventSourceResponse
 from fastapi import APIRouter, HTTPException
 from app.schemas.estimation import EstimationRequest, EstimationResponse
-from app.services.llm_service import LLMServiceError, generate_estimation, generate_estimation_stream
+from app.services.llm_service import LLMServiceError, generate_estimation, iter_estimation_chunks, start_estimation_stream
 
 log = structlog.get_logger()
 
@@ -33,9 +33,14 @@ def create_estimation(request: EstimationRequest) -> EstimationResponse:
 # en dos caracteres para que quepa en una sola linea 
 @router.post("/estimate/stream")
 def create_estimation_stream(request: EstimationRequest) -> EventSourceResponse:
+    response, cache_hit = start_estimation_stream(request.transcription)
+
     def event_stream():  # no ejecuta codigo solo crea el objeto para empezar y se detiene (yield)
-        for chunk in generate_estimation_stream(request.transcription):
-            yield {"data": json.dumps(chunk)}
+        for delta in iter_estimation_chunks(response):
+            yield {"data": json.dumps(delta)}
     # eventSourceResponde recibe este objeto y pide el siguiente trozo, por cada data que recibe lo convierte en texto plano con formato SSE
     # y lo manda por la conexion HTTP sin esperar el resto.
-    return EventSourceResponse(event_stream()) 
+    return EventSourceResponse(
+        event_stream(),
+        headers={"X-Cache-Hit": "true" if cache_hit else "false"},
+    ) 

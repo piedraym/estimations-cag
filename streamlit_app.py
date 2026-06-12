@@ -29,6 +29,7 @@ def stream_response_generator(transcription):
         timeout=120,
     ) as resp:
         resp.raise_for_status()
+        st.session_state.last_cache_hit = resp.headers.get("X-Cache-Hit") == "true"
         for line in resp.iter_lines(decode_unicode=True):
             if not line or line.startswith(":"):
                 continue # linea vacia
@@ -63,3 +64,13 @@ if transcription :=st.chat_input("Pega aqui la transctipcion ..."):
             st.error(full_response)
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+with st.sidebar:
+    st.header("Cache")
+    if "last_cache_hit" in st.session_state:
+        if st.session_state.last_cache_hit:
+            st.success("Last call: Cache Hit")
+        else:
+            st.info("Last call: Cache Miss")
+    else:
+        st.caption("Any consult yet")
