@@ -1,7 +1,9 @@
 import streamlit as st
 import requests
+import json
 
 API_URL = "http://localhost:8000/api/v1/estimate"
+STREAM_API_URL = "http://localhost:8000/api/v1/estimate/stream"
 
 def response_generator(transcription):
     try:
@@ -17,6 +19,21 @@ def response_generator(transcription):
     except requests.exceptions.RequestException as e:
         response = f"Error al llamar a la API: {e}"
         st.error(response)
+
+def stream_response_generator(transcription):
+    with requests.post(
+        STREAM_API_URL,
+        json={"transcription": transcription},
+        headers={"Content-Type": "application/json"},
+        stream=True,
+        timeout=120,
+    ) as resp:
+        resp.raise_for_status()
+        for line in resp.iter_lines(decode_unicode=True):
+            if not line or line.startswith(":"):
+                continue # linea vacia
+            if line.startswith("data:"):
+                yield json.loads(line[len("data:"):].strip())
 
 
 
@@ -39,7 +56,10 @@ if transcription :=st.chat_input("Pega aqui la transctipcion ..."):
 
     # call to endpoint
     with st.chat_message("assistant"):
-        with st.spinner("Estimando..."):
-            response = response_generator(transcription)
+        try:
+            full_response = st.write_stream(stream_response_generator(transcription))
+        except Exception as e:
+            full_response = f"Error inesperado: {e}"
+            st.error(full_response)
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
