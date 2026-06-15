@@ -36,8 +36,8 @@ def create_estimation_stream(request: EstimationRequest) -> EventSourceResponse:
     response, cache_hit = start_estimation_stream(request.transcription)
 
     def event_stream():  # no ejecuta codigo solo crea el objeto para empezar y se detiene (yield)
-        for delta in iter_estimation_chunks(response):
-            yield {"data": json.dumps(delta)}
+        for item in iter_estimation_chunks(response):
+            yield {"data": json.dumps(item)}
     # eventSourceResponde recibe este objeto y pide el siguiente trozo, por cada data que recibe lo convierte en texto plano con formato SSE
     # y lo manda por la conexion HTTP sin esperar el resto.
     return EventSourceResponse(

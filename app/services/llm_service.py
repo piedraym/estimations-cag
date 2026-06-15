@@ -106,6 +106,7 @@ def start_estimation_stream(transcription: str) -> tuple:
         num_retries=2,
         fallbacks=[settings.LLM_FALLBACK_MODEL] if settings.LLM_FALLBACK_MODEL else None,
         stream=True,
+        stream_options={"include_usage": True},
         caching=True,
         ttl=settings.CACHE_TTL_SECONDS,
     )
@@ -114,14 +115,30 @@ def start_estimation_stream(transcription: str) -> tuple:
     log.info("llm_strean_cache_check", cache_hit=cache_hit, model=settings.LLM_MODEL)
     return response, cache_hit
 
-def iter_estimation_chunks(response)-> Iterator[str]:
+def iter_estimation_chunks(response)-> Iterator[dict]:
+    model = None
+    usage = None
     try:
         for chunk in response:
+            model = getattr(chunk, "model", None) or model
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage:
+                usage = chunk_usage
             delta = chunk.choices[0].delta.content
             if delta:
-                yield delta
+                yield{"type": "delta", "content": delta}
     except Exception as exc:
         log.error("llm_stream_failed", error=str(exc))
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
+    
+    yield{
+        "type": "done",
+        "model": model,
+        "usage": {
+            "input_tokens": usage.prompt_tokens,
+            "output_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+        }if usage else None,
+    }
 
 
