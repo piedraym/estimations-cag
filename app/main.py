@@ -1,4 +1,6 @@
 import structlog
+import litellm
+from litellm.caching.caching import Cache
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import estimations
+
+settings = get_settings()
+
+litellm.cache = Cache(
+    type="redis",
+    host= settings.REDIS_HOST,
+    port= settings.REDIS_PORT,
+    password=settings.REDIS_PASSWORD,
+)
 
 # Depends of the enviroment configure the logs, JSON format to production, logs in  console in developments
 def configure_logging() -> None:

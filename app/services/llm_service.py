@@ -1,5 +1,7 @@
 import structlog
+import litellm
 
+from collections.abc import Iterator
 from app.config import get_settings
 from app.context.examples import ESTIMATION_EXAMPLES, format_examples_for_prompt
 
@@ -39,91 +41,104 @@ def build_system_prompt() -> str:
 def generate_estimation(transcription: str) -> dict:
     """Generate a software estimation from a meeting transcription using the configured LLM."""
     settings = get_settings()
-    system_prompt = build_system_prompt()
 
-    log.info("generating_estimation", provider=settings.LLM_PROVIDER, model=settings.LLM_MODEL)
+    log.info(
+        "generating_estimation",
+        model=settings.LLM_MODEL,
+        fallback=settings.LLM_FALLBACK_MODEL,
+    )
 
     try:
-        if settings.LLM_PROVIDER == "openai":
-            return _call_openai(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": transcription},
-                ],
-            )
-        else:
-            return _call_anthropic(
-                system=system_prompt,
-                user_message=transcription,
-            )
+        response = litellm.completion(
+            model = settings.LLM_MODEL,
+            messages = [
+                {"role": "system", "content": build_system_prompt()},
+                {"role": "user", "content": transcription}
+            ],
+            max_tokens= MAX_TOKENS,
+            num_retries= 2,
+            fallbacks=[settings.LLM_FALLBACK_MODEL] if settings.LLM_FALLBACK_MODEL else None,
+            caching=True,
+            ttl=settings.CACHE_TTL_SECONDS,
+        )
+
+        usage = response.usage
+        provider = settings.LLM_MODEL.split("/")[0]
+        cache_hit = response._hidden_params.get("cache_hit", False)
+
+        log.info( 
+            "llm_response_received",
+            model=response.model,
+            cache_hit=cache_hit,
+            input_tokens = usage.prompt_tokens,
+            output_tokens = usage.completion_tokens,
+        )
+
+        return{
+            "estimation": response.choices[0].message.content,
+            "model": response.model,
+            "provider": provider,
+            "usage":{
+                "input_tokens": usage.prompt_tokens,
+                "output_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
+            },
+        }
+
     except LLMServiceError:
         raise
     except Exception as exc:
-        log.error("llm_call_failed", error=str(exc), provider=settings.LLM_PROVIDER)
+        log.error("llm_call_failed", error=str(exc), model=settings.LLM_MODEL)
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
 
 
-def _call_openai(messages: list[dict]) -> dict:
-    """Send a chat completion request to the OpenAI API."""
-    from openai import OpenAI
-
+def start_estimation_stream(transcription: str) -> tuple:
     settings = get_settings()
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    log.info("generate_estimation_stream", model= settings.LLM_MODEL)
 
-    response = client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=messages,
+    response = litellm.completion(
+        model = settings.LLM_MODEL,
+        messages= [
+            {"role": "system", "content": build_system_prompt()},
+            {"role": "user", "content": transcription},
+        ],
         max_tokens=MAX_TOKENS,
+        num_retries=2,
+        fallbacks=[settings.LLM_FALLBACK_MODEL] if settings.LLM_FALLBACK_MODEL else None,
+        stream=True,
+        stream_options={"include_usage": True},
+        caching=True,
+        ttl=settings.CACHE_TTL_SECONDS,
     )
 
-    usage = response.usage
-    log.info(
-        "llm_response_received",
-        provider="openai",
-        input_tokens=usage.prompt_tokens,
-        output_tokens=usage.completion_tokens,
-    )
+    cache_hit= response._hidden_params.get("cache_hit", False)
+    log.info("llm_strean_cache_check", cache_hit=cache_hit, model=settings.LLM_MODEL)
+    return response, cache_hit
 
-    return {
-        "estimation": response.choices[0].message.content,
-        "model": response.model,
-        "provider": "openai",
+def iter_estimation_chunks(response)-> Iterator[dict]:
+    model = None
+    usage = None
+    try:
+        for chunk in response:
+            model = getattr(chunk, "model", None) or model
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage:
+                usage = chunk_usage
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield{"type": "delta", "content": delta}
+    except Exception as exc:
+        log.error("llm_stream_failed", error=str(exc))
+        raise LLMServiceError(f"LLM call failed: {exc}") from exc
+    
+    yield{
+        "type": "done",
+        "model": model,
         "usage": {
             "input_tokens": usage.prompt_tokens,
             "output_tokens": usage.completion_tokens,
             "total_tokens": usage.total_tokens,
-        },
+        }if usage else None,
     }
 
 
-def _call_anthropic(system: str, user_message: str) -> dict:
-    """Send a message request to the Anthropic API."""
-    from anthropic import Anthropic
-
-    settings = get_settings()
-    client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-
-    response = client.messages.create(
-        model=settings.LLM_MODEL,
-        max_tokens=MAX_TOKENS,
-        system=system,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    log.info(
-        "llm_response_received",
-        provider="anthropic",
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
-    )
-
-    return {
-        "estimation": response.content[0].text,
-        "model": response.model,
-        "provider": "anthropic",
-        "usage": {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-            "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
-        },
-    }

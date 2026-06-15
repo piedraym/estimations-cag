@@ -14,18 +14,25 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
-    LLM_PROVIDER: Literal["openai", "anthropic"] = "openai"
-    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_MODEL: str = "openai/gpt-4o-mini"
+    LLM_FALLBACK_MODEL: str | None = None
+    # LLM_FALLBACK_MODEL: str | None = "anthropic/claude-haiku-4-5-20251001"
     APP_ENV: Literal["development", "staging", "production"] = "development"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "DEBUG"
 
+    #configuracion de redis para implementar la cache (Exact match)
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str | None = None
+    CACHE_TTL_SECONDS: int = 3600
+
     @model_validator(mode="after")
     def validate_api_key_for_provider(self) -> "Settings":
-        """Ensure the API key for the selected LLM provider is present."""
-        if self.LLM_PROVIDER == "openai" and not self.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER is 'openai'")
-        if self.LLM_PROVIDER == "anthropic" and not self.ANTHROPIC_API_KEY:
-            raise ValueError("ANTHROPIC_API_KEY is required when LLM_PROVIDER is 'anthropic'")
+        for model in filter(None, [self.LLM_MODEL, self.LLM_FALLBACK_MODEL]):
+            if model.startswith("openai/") and not self.OPENAI_API_KEY:
+                raise ValueError("OPENAI_API_KEY is required for openai models")
+            if model.startswith("anthropic/")and not self.ANTHROPIC_API_KEY:
+                raise ValueError("ANTHROPIC_API_KEY is required for anthropic models")
         return self
 
 

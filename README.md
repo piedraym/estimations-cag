@@ -4,35 +4,53 @@ AI-powered software estimation service that converts meeting transcriptions into
 
 ## How it works
 
-1. You send a meeting transcription via the REST API
+1. You send a meeting transcription via the REST API or the Streamlit chat UI
 2. The service builds a prompt that includes 3 reference estimations as examples
-3. The LLM (OpenAI or Anthropic) generates a structured estimation in markdown
-4. The response includes the estimation, the model used, and token consumption
+3. The request goes through **LiteLLM**, which calls the configured model (OpenAI or Anthropic) with automatic fallback to a secondary model if configured
+4. Identical requests (same transcription + model) are served from a **Redis cache** (exact match) instead of calling the LLM again
+5. The LLM generates a structured estimation in markdown, returned either as a single JSON response or streamed token-by-token via **SSE**
+6. The response includes the estimation, the model used, the provider, and token consumption
 
 ## Tech stack
 
 - **Python 3.11+**
 - **FastAPI** — REST API framework
+- **LiteLLM** — unified wrapper for OpenAI / Anthropic models, with fallback support
+- **Redis** — exact-match response cache
+- **sse-starlette** — Server-Sent Events for streaming responses
+- **Streamlit** — chat-style UI
 - **Pydantic** — request/response validation
 - **structlog** — structured logging
 - **uv** — dependency management
-- OpenAI and Anthropic SDKs
 
 ## Project structure
 
 ```
 app/
-├── main.py              # FastAPI app, middleware, lifespan
+├── main.py              # FastAPI app, middleware, lifespan, Redis cache setup
 ├── config.py            # Settings loaded from environment variables
 ├── routers/
-│   └── estimations.py   # POST /api/v1/estimate endpoint
+│   └── estimations.py   # POST /api/v1/estimate and /api/v1/estimate/stream endpoints
 ├── schemas/
 │   └── estimation.py    # Request and response models
 ├── services/
-│   └── llm_service.py   # LLM calls (OpenAI / Anthropic)
+│   └── llm_service.py   # LLM calls via LiteLLM (sync + streaming, with caching)
 └── context/
     └── examples.py      # Reference estimations injected into the system prompt
+streamlit_app.py          # Chat UI that consumes the streaming endpoint
 ```
+
+## Required services
+
+To run the project locally you need **three things running**:
+
+| Service | Purpose | Default address |
+| --- | --- | --- |
+| Redis | Exact-match response cache used by LiteLLM | `localhost:6379` |
+| FastAPI backend (uvicorn) | REST API (`/api/v1/estimate`, `/api/v1/estimate/stream`) | `http://localhost:8000` |
+| Streamlit UI | Chat interface that calls the backend | `http://localhost:8501` |
+
+If Redis is not running, the API still works, but every request is a cache miss (LiteLLM silently skips caching on connection errors).
 
 ## Setup
 
@@ -53,26 +71,60 @@ cp .env.example .env
 Edit `.env` with your values:
 
 ```env
-# Required — choose one provider
-LLM_PROVIDER=openai          # or anthropic
-OPENAI_API_KEY=sk-...        # required if LLM_PROVIDER=openai
-ANTHROPIC_API_KEY=sk-ant-... # required if LLM_PROVIDER=anthropic
+# Required — at least one provider key, matching LLM_MODEL / LLM_FALLBACK_MODEL
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
 
-# Model to use
-LLM_MODEL=gpt-4o-mini        # e.g. gpt-4o, claude-sonnet-4-6
+# Model to use, format "<provider>/<model-name>"
+LLM_MODEL=openai/gpt-4o-mini
+# Optional fallback model, used if LLM_MODEL fails
+LLM_FALLBACK_MODEL=anthropic/claude-haiku-4-5-20251001
 
 # App settings
 APP_ENV=development           # development | staging | production
-LOG_LEVEL=DEBUG               # DEBUG | INFO | WARNING | ERROR
+LOG_LEVEL=DEBUG                # DEBUG | INFO | WARNING | ERROR
+
+# Redis cache (exact match)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+CACHE_TTL_SECONDS=3600
 ```
 
-**3. Run the server**
+**3. Start Redis**
+
+```bash
+brew install redis        # first time only
+brew services start redis # keeps running across reboots
+```
+
+Alternatively, run it in the foreground without a background service:
+
+```bash
+redis-server
+```
+
+Check it's up with:
+
+```bash
+redis-cli ping   # -> PONG
+```
+
+**4. Run the API server**
 
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
 API available at `http://localhost:8000`
+
+**5. Run the Streamlit UI** (in a separate terminal)
+
+```bash
+uv run streamlit run streamlit_app.py
+```
+
+UI available at `http://localhost:8501`
 
 ## API
 
@@ -113,6 +165,22 @@ curl -X POST http://localhost:8000/api/v1/estimate \
   }'
 ```
 
+### `POST /api/v1/estimate/stream`
+
+Same input as `/api/v1/estimate`, but streams the estimation as it's generated using Server-Sent Events. Each event's `data` field is a JSON-encoded text fragment (delta) to append to the response.
+
+The response includes an `X-Cache-Hit` header (`"true"` or `"false"`) indicating whether the result came from the Redis cache. On a cache hit, the full estimation is sent as a single event.
+
+**Example**
+
+```bash
+curl -N -X POST http://localhost:8000/api/v1/estimate/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transcription": "The client needs a landing page with a contact form, HubSpot CRM integration, and a blog with a WYSIWYG editor. The design is ready in Figma. Deadline is 4 weeks."
+  }'
+```
+
 ### `GET /health`
 
 Returns service health status.
@@ -133,6 +201,21 @@ curl http://localhost:8000/health
 
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+## Caching
+
+LiteLLM is configured with a Redis-backed **exact-match cache** (`app/main.py`). For both `/api/v1/estimate` and `/api/v1/estimate/stream`, identical requests (same model + messages) within `CACHE_TTL_SECONDS` are served from Redis instead of calling the LLM provider again.
+
+- Cache hits are returned immediately (no LLM call, no token usage).
+- For the streaming endpoint, the `X-Cache-Hit` response header reports whether the cache was used.
+- Caching fails silently if Redis is unreachable — the API keeps working, just without caching.
+
+## Streamlit chat UI
+
+`streamlit_app.py` provides a chat-style interface backed by `/api/v1/estimate/stream`:
+
+- Paste a transcription and the estimation streams in as it's generated.
+- The sidebar shows whether the last response was a **Cache Hit** or **Cache Miss**, based on the `X-Cache-Hit` header.
 
 ## Estimation output format
 
