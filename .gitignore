@@ -22,6 +22,7 @@ htmlcov/
 # IDEs
 .vscode/
 .idea/
+dump.rdb
 
 # macOS
 .DS_Store
