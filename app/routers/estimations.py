@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v1", tags=["estimations"])
 def create_estimation(request: EstimationRequest) -> EstimationResponse:
     """Receive a meeting transcription and return a software project estimation."""
     try:
-        result = generate_estimation(request.transcription)
+        result = generate_estimation(request)
     except LLMServiceError as exc:
         log.error("estimation_endpoint_error", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc))
@@ -33,7 +33,7 @@ def create_estimation(request: EstimationRequest) -> EstimationResponse:
 # en dos caracteres para que quepa en una sola linea 
 @router.post("/estimate/stream")
 def create_estimation_stream(request: EstimationRequest) -> EventSourceResponse:
-    response, cache_hit = start_estimation_stream(request.transcription)
+    response, cache_hit = start_estimation_stream(request)
 
     def event_stream():  # no ejecuta codigo solo crea el objeto para empezar y se detiene (yield)
         for item in iter_estimation_chunks(response):

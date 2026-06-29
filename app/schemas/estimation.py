@@ -1,10 +1,28 @@
 from pydantic import BaseModel, Field
+from enum import Enum
 
 # aqui se valida que la transcripcion tiene al menos 50 caracteres
+class ProjectType(str, Enum):
+    web_application = "web_application"
+    mobile_app = "mobile_app"
+    landing_page = "landing_page"
+
+class DetailLevel(str, Enum):
+    summary ="summary"
+    medium = "medium"
+    detailed = "detailed"
+
+class OutputFormat(str, Enum):
+    phases_table= "phases_table"
+    narrative = "narrative"
+
 class EstimationRequest(BaseModel):
     """Incoming request containing a meeting transcription to estimate."""
 
     transcription: str = Field(..., min_length=50, description="Meeting transcription text")
+    # project_type: ProjectType = Field(default=ProjectType.web_application, description="Coarse-grained project category.")
+    # detail_level: DetailLevel = Field(default=DetailLevel.detailed, description="How deep the estimation should go.")
+    # output_format: OutputFormat = Field(default=OutputFormat.phases_table, description="Shape of the rendered estimation.")
 
 
 class TokenUsage(BaseModel):

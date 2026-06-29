@@ -3,7 +3,8 @@ import litellm
 
 from collections.abc import Iterator
 from app.config import get_settings
-from app.context.examples import ESTIMATION_EXAMPLES, format_examples_for_prompt
+from app.prompts.loader import render_estimation_prompt
+from app.schemas.estimation import EstimationRequest
 
 log = structlog.get_logger()
 
@@ -14,33 +15,10 @@ class LLMServiceError(Exception):
     """Raised when the LLM provider call fails."""
 
 
-def build_system_prompt() -> str:
-    """Construct the system prompt with role definition and reference examples."""
-    examples_text = format_examples_for_prompt(ESTIMATION_EXAMPLES)
-    return (
-        "You are a senior software consultant with 15+ years of experience in project "
-        "estimation. Your task is to produce a detailed software project estimation based "
-        "on a meeting transcription provided by the user.\n\n"
-        "Below are reference estimations from previous projects. Use them as a guide for "
-        "structure, level of detail, and realistic pricing. Adapt the content to match the "
-        "specific project described in the transcription.\n\n"
-        "Your output MUST follow this exact format:\n"
-        "- Project title as an H2 heading\n"
-        "- A task breakdown table with columns: Task, Hours, Cost (EUR)\n"
-        "- Total hours\n"
-        "- Total cost in EUR\n"
-        "- Recommended team composition\n"
-        "- Estimated duration in weeks\n\n"
-        "Use a developer rate of approximately 62.50 EUR/hour (500 EUR/day) and a designer "
-        "rate of approximately 50 EUR/hour (400 EUR/day). Provide realistic, well-justified "
-        "numbers.\n\n"
-        f"{examples_text}"
-    )
-
-
-def generate_estimation(transcription: str) -> dict:
+def generate_estimation(request: EstimationRequest) -> dict:
     """Generate a software estimation from a meeting transcription using the configured LLM."""
     settings = get_settings()
+    system_prompt, user_prompt = render_estimation_prompt(request)
 
     log.info(
         "generating_estimation",
@@ -52,8 +30,8 @@ def generate_estimation(transcription: str) -> dict:
         response = litellm.completion(
             model = settings.LLM_MODEL,
             messages = [
-                {"role": "system", "content": build_system_prompt()},
-                {"role": "user", "content": transcription}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
             max_tokens= MAX_TOKENS,
             num_retries= 2,
@@ -92,15 +70,16 @@ def generate_estimation(transcription: str) -> dict:
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
 
 
-def start_estimation_stream(transcription: str) -> tuple:
+def start_estimation_stream(request: EstimationRequest) -> tuple:
     settings = get_settings()
     log.info("generate_estimation_stream", model= settings.LLM_MODEL)
+    system_prompt, user_prompt = render_estimation_prompt(request)
 
     response = litellm.completion(
         model = settings.LLM_MODEL,
         messages= [
-            {"role": "system", "content": build_system_prompt()},
-            {"role": "user", "content": transcription},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
         ],
         max_tokens=MAX_TOKENS,
         num_retries=2,
