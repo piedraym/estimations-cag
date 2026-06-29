@@ -22,6 +22,10 @@ htmlcov/
 # IDEs
 .vscode/
 .idea/
+
+# Vim
+*.swp
+*.swo
 dump.rdb
 
 # macOS
