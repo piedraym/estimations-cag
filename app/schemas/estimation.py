@@ -20,9 +20,9 @@ class EstimationRequest(BaseModel):
     """Incoming request containing a meeting transcription to estimate."""
 
     transcription: str = Field(..., min_length=50, description="Meeting transcription text")
-    # project_type: ProjectType = Field(default=ProjectType.web_application, description="Coarse-grained project category.")
-    # detail_level: DetailLevel = Field(default=DetailLevel.detailed, description="How deep the estimation should go.")
-    # output_format: OutputFormat = Field(default=OutputFormat.phases_table, description="Shape of the rendered estimation.")
+    project_type: ProjectType = Field(default=ProjectType.web_application, description="Coarse-grained project category.")
+    detail_level: DetailLevel = Field(default=DetailLevel.detailed, description="How deep the estimation should go.")
+    output_format: OutputFormat = Field(default=OutputFormat.phases_table, description="Shape of the rendered estimation.")
 
 
 class TokenUsage(BaseModel):
@@ -40,3 +40,4 @@ class EstimationResponse(BaseModel):
     model: str = Field(..., description="LLM model used")
     provider: str = Field(..., description="LLM provider used")
     usage: TokenUsage
+    prompt_version: str = Field(..., description="Version of the prompt template used")

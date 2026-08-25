@@ -9,6 +9,7 @@ from app.schemas.estimation import EstimationRequest
 log = structlog.get_logger()
 
 MAX_TOKENS = 4000
+PROMPT_VERSION = "v1"
 
 
 class LLMServiceError(Exception):
@@ -18,7 +19,7 @@ class LLMServiceError(Exception):
 def generate_estimation(request: EstimationRequest) -> dict:
     """Generate a software estimation from a meeting transcription using the configured LLM."""
     settings = get_settings()
-    system_prompt, user_prompt = render_estimation_prompt(request)
+    system_prompt, user_prompt = render_estimation_prompt(request, version=PROMPT_VERSION)
 
     log.info(
         "generating_estimation",
@@ -61,6 +62,7 @@ def generate_estimation(request: EstimationRequest) -> dict:
                 "output_tokens": usage.completion_tokens,
                 "total_tokens": usage.total_tokens,
             },
+            "prompt_version": PROMPT_VERSION,
         }
 
     except LLMServiceError:
@@ -73,7 +75,7 @@ def generate_estimation(request: EstimationRequest) -> dict:
 def start_estimation_stream(request: EstimationRequest) -> tuple:
     settings = get_settings()
     log.info("generate_estimation_stream", model= settings.LLM_MODEL)
-    system_prompt, user_prompt = render_estimation_prompt(request)
+    system_prompt, user_prompt = render_estimation_prompt(request, version=PROMPT_VERSION)
 
     response = litellm.completion(
         model = settings.LLM_MODEL,
@@ -118,6 +120,6 @@ def iter_estimation_chunks(response)-> Iterator[dict]:
             "output_tokens": usage.completion_tokens,
             "total_tokens": usage.total_tokens,
         }if usage else None,
+        "prompt_version": PROMPT_VERSION,
     }
-
 

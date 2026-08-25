@@ -18,16 +18,15 @@ services:
     depends_on:
       - redis
 
-  ui:
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      REDIS_HOST: redis
-      API_BASE_URL: http://api:8000
-    command: uv run streamlit run streamlit_app.py --server.address=0.0.0.0
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
     ports:
-      - "8501:8501"
+      - "5173:5173"
     depends_on:
       - api
 
