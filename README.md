@@ -4,12 +4,12 @@ AI-powered software estimation service that converts meeting transcriptions into
 
 ## How it works
 
-1. You send a meeting transcription via the REST API or the Streamlit chat UI
-2. The service builds a prompt that includes 3 reference estimations as examples
+1. You send a meeting transcription plus typed parameters (project type, detail level, output format) via the REST API or the React form UI
+2. The service renders a versioned Jinja2 prompt template that includes 3 reference estimations as examples
 3. The request goes through **LiteLLM**, which calls the configured model (OpenAI or Anthropic) with automatic fallback to a secondary model if configured
 4. Identical requests (same transcription + model) are served from a **Redis cache** (exact match) instead of calling the LLM again
 5. The LLM generates a structured estimation in markdown, returned either as a single JSON response or streamed token-by-token via **SSE**
-6. The response includes the estimation, the model used, the provider, and token consumption
+6. The response includes the estimation, the model used, the provider, the prompt version, and token consumption
 
 ## Tech stack
 
@@ -18,10 +18,11 @@ AI-powered software estimation service that converts meeting transcriptions into
 - **LiteLLM** — unified wrapper for OpenAI / Anthropic models, with fallback support
 - **Redis** — exact-match response cache
 - **sse-starlette** — Server-Sent Events for streaming responses
-- **Streamlit** — chat-style UI
+- **Jinja2** — versioned prompt templates
+- **React (Vite)** — form-based UI, in `frontend/`
 - **Pydantic** — request/response validation
 - **structlog** — structured logging
-- **uv** — dependency management
+- **uv** — Python dependency management
 
 ## Project structure
 
@@ -35,9 +36,11 @@ app/
 │   └── estimation.py    # Request and response models
 ├── services/
 │   └── llm_service.py   # LLM calls via LiteLLM (sync + streaming, with caching)
-└── context/
-    └── examples.py      # Reference estimations injected into the system prompt
-streamlit_app.py          # Chat UI that consumes the streaming endpoint
+└── prompts/
+    ├── loader.py         # Renders versioned Jinja2 templates
+    ├── examples.py       # Reference estimations injected into the system prompt
+    └── estimation/v1/    # system.j2, user.j2, examples.j2
+frontend/                 # React (Vite) form UI that consumes the API
 ```
 
 ## Required services
@@ -48,7 +51,7 @@ To run the project locally you need **three things running**:
 | --- | --- | --- |
 | Redis | Exact-match response cache used by LiteLLM | `localhost:6379` |
 | FastAPI backend (uvicorn) | REST API (`/api/v1/estimate`, `/api/v1/estimate/stream`) | `http://localhost:8000` |
-| Streamlit UI | Chat interface that calls the backend | `http://localhost:8501` |
+| React UI (Vite) | Form interface that calls the backend | `http://localhost:5173` |
 
 If Redis is not running, the API still works, but every request is a cache miss (LiteLLM silently skips caching on connection errors).
 
@@ -118,13 +121,15 @@ uv run uvicorn app.main:app --reload
 
 API available at `http://localhost:8000`
 
-**5. Run the Streamlit UI** (in a separate terminal)
+**5. Install and run the React UI** (in a separate terminal)
 
 ```bash
-uv run streamlit run streamlit_app.py
+cd frontend
+npm install
+npm run dev
 ```
 
-UI available at `http://localhost:8501`
+UI available at `http://localhost:5173`
 
 ## API
 
@@ -136,9 +141,14 @@ Generates a software project estimation from a meeting transcription.
 
 ```json
 {
-  "transcription": "Meeting text describing the project requirements (min 50 characters)"
+  "transcription": "Meeting text describing the project requirements (min 50 characters)",
+  "project_type": "web_application",
+  "detail_level": "detailed",
+  "output_format": "phases_table"
 }
 ```
+
+`project_type` (`web_application` | `mobile_app` | `landing_page`), `detail_level` (`summary` | `medium` | `detailed`) and `output_format` (`phases_table` | `narrative`) are optional and default as shown above.
 
 **Response**
 
@@ -151,7 +161,8 @@ Generates a software project estimation from a meeting transcription.
     "input_tokens": 1240,
     "output_tokens": 610,
     "total_tokens": 1850
-  }
+  },
+  "prompt_version": "v1"
 }
 ```
 
@@ -210,12 +221,12 @@ LiteLLM is configured with a Redis-backed **exact-match cache** (`app/main.py`).
 - For the streaming endpoint, the `X-Cache-Hit` response header reports whether the cache was used.
 - Caching fails silently if Redis is unreachable — the API keeps working, just without caching.
 
-## Streamlit chat UI
+## React form UI
 
-`streamlit_app.py` provides a chat-style interface backed by `/api/v1/estimate/stream`:
+`frontend/` (React + Vite) provides a form-based interface backed by `/api/v1/estimate`:
 
-- Paste a transcription and the estimation streams in as it's generated.
-- The sidebar shows whether the last response was a **Cache Hit** or **Cache Miss**, based on the `X-Cache-Hit` header.
+- A form with a transcription textarea and three selects (project type, detail level, output format).
+- The sidebar shows the model used and token usage (input/output/total) from the last response.
 
 ## Estimation output format
 
