@@ -9,40 +9,25 @@ ESTIMATION_EXAMPLES: list[dict] = [
             "a PostgreSQL database running in AWS that we should integrate with. No mobile app "
             "is needed — the warehouse team will use tablets with the web interface."
         ),
-        "estimation": """\
-## Inventory Management Web Platform
-
-### Task Breakdown
-
-| Task | Hours | Cost (EUR) |
-|------|------:|------------|
-| Requirements analysis and technical design | 16 | 1,000 |
-| Database schema design and migrations | 12 | 750 |
-| Authentication and role-based access control | 20 | 1,250 |
-| Product and stock CRUD API | 24 | 1,500 |
-| Automated reorder alert engine | 16 | 1,000 |
-| CSV/Excel import and export module | 14 | 875 |
-| Dashboard with key metrics and charts | 20 | 1,250 |
-| Frontend: inventory views and search/filter | 24 | 1,500 |
-| Frontend: admin panel and user management | 12 | 750 |
-| AWS PostgreSQL integration and deployment | 10 | 625 |
-| Testing (unit, integration, E2E) | 20 | 1,250 |
-| Code review, QA, and bug fixing | 12 | 750 |
-
-### Totals
-
-- **Total hours:** 200
-- **Total cost:** 12,500 EUR
-
-### Recommended Team
-
-- 1 Senior Backend Developer (lead)
-- 1 Mid-level Full-Stack Developer
-- 1 QA Engineer (part-time, last 3 weeks)
-
-### Estimated Duration
-
-**10 weeks** with a two-person development team.""",
+        "estimation": {
+            "title": "Inventory Management Web Platform",
+            "phases": [
+                {"name": "Discovery & design", "hours": 24, "cost_eur": 1500, "confidence_pct": 85},
+                {"name": "Backend & data model", "hours": 56, "cost_eur": 3500, "confidence_pct": 75},
+                {"name": "Core features (alerts, import/export, dashboard)", "hours": 64, "cost_eur": 4000, "confidence_pct": 70},
+                {"name": "Frontend", "hours": 36, "cost_eur": 2250, "confidence_pct": 75},
+                {"name": "Testing & deployment", "hours": 20, "cost_eur": 1250, "confidence_pct": 80},
+            ],
+            "total_hours": 200,
+            "total_cost_eur": 12500,
+            "team": [
+                "1 Senior Backend Developer (lead)",
+                "1 Mid-level Full-Stack Developer",
+                "1 QA Engineer (part-time, last 3 weeks)",
+            ],
+            "duration_weeks": 10,
+            "narrative": None,
+        },
     },
     {
         "meeting_summary": (
@@ -55,38 +40,23 @@ ESTIMATION_EXAMPLES: list[dict] = [
             "They also want basic analytics integration with Google Tag Manager and Meta Pixel "
             "for ad campaign tracking."
         ),
-        "estimation": """\
-## Real Estate Landing Page with CRM Integration
-
-### Task Breakdown
-
-| Task | Hours | Cost (EUR) |
-|------|------:|------------|
-| Requirements review and UX analysis | 8 | 500 |
-| UI design adaptation from Figma to code | 16 | 800 |
-| Hero section with video background | 8 | 500 |
-| Property gallery with filtering | 16 | 1,000 |
-| Lead capture form with validation | 8 | 500 |
-| HubSpot CRM API integration | 14 | 875 |
-| Testimonials carousel component | 6 | 375 |
-| Google Tag Manager and Meta Pixel setup | 6 | 375 |
-| Responsive design and cross-browser testing | 10 | 625 |
-| Performance optimization (Core Web Vitals) | 8 | 500 |
-| Deployment and DNS configuration | 4 | 250 |
-
-### Totals
-
-- **Total hours:** 104
-- **Total cost:** 6,300 EUR
-
-### Recommended Team
-
-- 1 Senior Frontend Developer
-- 1 UI/UX Designer (part-time, first 2 weeks)
-
-### Estimated Duration
-
-**5 weeks** with a single frontend developer and part-time design support.""",
+        "estimation": {
+            "title": "Real Estate Landing Page with CRM Integration",
+            "phases": [
+                {"name": "Discovery & design", "hours": 24, "cost_eur": 1300, "confidence_pct": 85},
+                {"name": "Implementation (gallery, form, CRM integration)", "hours": 44, "cost_eur": 2750, "confidence_pct": 70},
+                {"name": "Analytics & integrations", "hours": 12, "cost_eur": 750, "confidence_pct": 75},
+                {"name": "Testing & launch", "hours": 24, "cost_eur": 1500, "confidence_pct": 80},
+            ],
+            "total_hours": 104,
+            "total_cost_eur": 6300,
+            "team": [
+                "1 Senior Frontend Developer",
+                "1 UI/UX Designer (part-time, first 2 weeks)",
+            ],
+            "duration_weeks": 5,
+            "narrative": None,
+        },
     },
     {
         "meeting_summary": (
@@ -98,53 +68,25 @@ ESTIMATION_EXAMPLES: list[dict] = [
             "renewal), and an admin panel to manage customer accounts. They want a REST API "
             "with a React frontend. MVP scope — they plan to iterate after launch."
         ),
-        "estimation": """\
-## SaaS Subscription Management Platform (MVP)
-
-### Task Breakdown
-
-| Task | Hours | Cost (EUR) |
-|------|------:|------------|
-| Architecture design and project setup | 12 | 750 |
-| User registration and authentication (JWT) | 16 | 1,000 |
-| Company onboarding flow | 12 | 750 |
-| Subscription CRUD API and data model | 20 | 1,250 |
-| Dashboard: active subscriptions and spend analytics | 24 | 1,500 |
-| Stripe integration: payments and invoices | 28 | 1,750 |
-| Email notification system (renewal reminders) | 16 | 1,000 |
-| Admin panel for customer management | 20 | 1,250 |
-| React frontend: views, forms, and routing | 40 | 2,500 |
-| API documentation (OpenAPI/Swagger) | 6 | 375 |
-| Testing (unit, integration, Stripe sandbox) | 24 | 1,500 |
-| Deployment, CI/CD pipeline, and staging env | 16 | 1,000 |
-| Security audit and hardening | 10 | 625 |
-
-### Totals
-
-- **Total hours:** 244
-- **Total cost:** 15,250 EUR
-
-### Recommended Team
-
-- 1 Senior Full-Stack Developer (lead)
-- 1 Mid-level Backend Developer
-- 1 Mid-level Frontend Developer
-- 1 QA Engineer (part-time, last 4 weeks)
-
-### Estimated Duration
-
-**12 weeks** with a three-person core development team.""",
+        "estimation": {
+            "title": "SaaS Subscription Management Platform (MVP)",
+            "phases": [
+                {"name": "Discovery & architecture", "hours": 24, "cost_eur": 1500, "confidence_pct": 85},
+                {"name": "Backend & Stripe integration", "hours": 96, "cost_eur": 6000, "confidence_pct": 65},
+                {"name": "Frontend (React)", "hours": 60, "cost_eur": 3750, "confidence_pct": 75},
+                {"name": "Testing & security", "hours": 40, "cost_eur": 2500, "confidence_pct": 70},
+                {"name": "Deployment & docs", "hours": 24, "cost_eur": 1500, "confidence_pct": 80},
+            ],
+            "total_hours": 244,
+            "total_cost_eur": 15250,
+            "team": [
+                "1 Senior Full-Stack Developer (lead)",
+                "1 Mid-level Backend Developer",
+                "1 Mid-level Frontend Developer",
+                "1 QA Engineer (part-time, last 4 weeks)",
+            ],
+            "duration_weeks": 12,
+            "narrative": None,
+        },
     },
 ]
-
-
-def format_examples_for_prompt(examples: list[dict]) -> str:
-    """Format estimation examples into a string suitable for injection into a system prompt."""
-    parts: list[str] = []
-    for i, example in enumerate(examples, start=1):
-        parts.append(
-            f"--- EXAMPLE {i} ---\n"
-            f"Meeting Summary:\n{example['meeting_summary']}\n\n"
-            f"Estimation:\n{example['estimation']}\n"
-        )
-    return "\n".join(parts)

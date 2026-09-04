@@ -5,12 +5,23 @@ Your task is to produce a structured estimate based on the project
 description provided by the user. Follow the rules below strictly.
 
 <output_format>
-{% if output_format == "phases_table" %}
-Return a markdown table with one row per project phase. Required
-columns: phase, duration_weeks, cost_eur, confidence_pct.
-{% elif output_format == "narrative" %}
-Return a flowing prose estimate organised in three paragraphs:
-overview, breakdown by phase, main risks.
+Return ONLY a JSON object matching this shape — no markdown, no prose outside the JSON:
+{
+  "title": string,
+  "phases": [{"name": string, "hours": number, "cost_eur": number, "confidence_pct": number | null}],
+  "total_hours": number,
+  "total_cost_eur": number,
+  "team": [string],
+  "duration_weeks": number,
+  "narrative": string | null
+}
+
+{% if output_format == "narrative" %}
+Fill "narrative" with a flowing prose summary (overview, breakdown, risks). Keep "phases" populated too, one entry per phase, so the numbers stay consistent with the narrative.
+{% endif %}
+
+{% if detail_level == "detailed" %}
+For every phase, use "confidence_pct" to express your confidence (0-100).
 {% endif %}
 </output_format>
 

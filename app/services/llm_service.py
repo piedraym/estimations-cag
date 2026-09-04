@@ -4,7 +4,8 @@ import litellm
 from collections.abc import Iterator
 from app.config import get_settings
 from app.prompts.loader import render_estimation_prompt
-from app.schemas.estimation import EstimationRequest
+from app.schemas.estimation import EstimationRequest, EstimationData
+from pydantic import ValidationError
 
 log = structlog.get_logger()
 
@@ -15,7 +16,7 @@ PROMPT_VERSION = "v1"
 class LLMServiceError(Exception):
     """Raised when the LLM provider call fails."""
 
-
+# Funcion completa que devuleve la llamada el parseo y el retono
 def generate_estimation(request: EstimationRequest) -> dict:
     """Generate a software estimation from a meeting transcription using the configured LLM."""
     settings = get_settings()
@@ -39,7 +40,14 @@ def generate_estimation(request: EstimationRequest) -> dict:
             fallbacks=[settings.LLM_FALLBACK_MODEL] if settings.LLM_FALLBACK_MODEL else None,
             caching=True,
             ttl=settings.CACHE_TTL_SECONDS,
+            response_format=EstimationData,
         )
+
+        try:
+            data = EstimationData.model_validate_json(response.choices[0].message.content)
+        except ValidationError as exc:
+            log.error("estimation_schema_invalid", error=str(exc), raw=response.choices[0].message.content)
+            raise LLMServiceError(f"Model returned invalid estimation JSON: {exc}") from exc
 
         usage = response.usage
         provider = settings.LLM_MODEL.split("/")[0]
@@ -54,7 +62,7 @@ def generate_estimation(request: EstimationRequest) -> dict:
         )
 
         return{
-            "estimation": response.choices[0].message.content,
+            "data": data.model_dump(),
             "model": response.model,
             "provider": provider,
             "usage":{
@@ -90,6 +98,7 @@ def start_estimation_stream(request: EstimationRequest) -> tuple:
         stream_options={"include_usage": True},
         caching=True,
         ttl=settings.CACHE_TTL_SECONDS,
+        response_format=EstimationData
     )
 
     cache_hit= response._hidden_params.get("cache_hit", False)
@@ -99,6 +108,7 @@ def start_estimation_stream(request: EstimationRequest) -> tuple:
 def iter_estimation_chunks(response)-> Iterator[dict]:
     model = None
     usage = None
+    buffer = ""
     try:
         for chunk in response:
             model = getattr(chunk, "model", None) or model
@@ -107,14 +117,23 @@ def iter_estimation_chunks(response)-> Iterator[dict]:
                 usage = chunk_usage
             delta = chunk.choices[0].delta.content
             if delta:
+                buffer += delta
                 yield{"type": "delta", "content": delta}
     except Exception as exc:
         log.error("llm_stream_failed", error=str(exc))
         raise LLMServiceError(f"LLM call failed: {exc}") from exc
+
+    try:
+        data = EstimationData.model_validate_json(buffer)
+    except ValidationError as exc:
+        log.error("estimation_schema_invalid", error=str(exc), raw=buffer)
+        yield {"type":"error", "detail":f"Model returned invalid estimation Json: {exc}"}
+        return
     
     yield{
         "type": "done",
         "model": model,
+        "data" : data.model_dump(),
         "usage": {
             "input_tokens": usage.prompt_tokens,
             "output_tokens": usage.completion_tokens,

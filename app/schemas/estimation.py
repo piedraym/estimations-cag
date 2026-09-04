@@ -32,11 +32,29 @@ class TokenUsage(BaseModel):
     output_tokens: int
     total_tokens: int
 
+class Phase(BaseModel):
+    name: str
+    hours: float
+    cost_eur: float
+    confidence_pct: int | None=None
+
+class EstimationData(BaseModel):
+    """ Structured estimation content, parsed from LLM's JSON output"""
+    title: str
+    phases: list[Phase]
+    total_hours: float
+    total_cost_eur: float
+    team: list[str]
+    duration_weeks: float
+    narrative: str | None = Field(
+        default=None, description="Prose summary, populated when output_format == narrative"
+    )
+
 
 class EstimationResponse(BaseModel):
     """Response containing the generated estimation and metadata."""
 
-    estimation: str = Field(..., description="Generated software estimation in markdown")
+    data: EstimationData
     model: str = Field(..., description="LLM model used")
     provider: str = Field(..., description="LLM provider used")
     usage: TokenUsage
