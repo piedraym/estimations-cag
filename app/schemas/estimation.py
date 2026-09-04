@@ -59,3 +59,4 @@ class EstimationResponse(BaseModel):
     provider: str = Field(..., description="LLM provider used")
     usage: TokenUsage
     prompt_version: str = Field(..., description="Version of the prompt template used")
+    cache_hit: bool = Field(..., description="Whether the LLM response was serverd from cache")

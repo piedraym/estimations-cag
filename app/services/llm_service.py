@@ -71,6 +71,7 @@ def generate_estimation(request: EstimationRequest) -> dict:
                 "total_tokens": usage.total_tokens,
             },
             "prompt_version": PROMPT_VERSION,
+            "cache_hit": cache_hit,
         }
 
     except LLMServiceError:

@@ -100,6 +100,15 @@ function App() {
             )}
           </div>
 
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Cache Hit</p>
+            {result?.usage ? (
+              <p className='mt-2 text-sm fort-mono'>{result.cache_hit ? 'Yes' : 'No'} </p>
+            ):(
+              <p className='mt-2 text-sm text-salte-400'>Sin datos aun. </p>
+            )}
+          </div>
+
           {result?.prompt_version && (
             <p className="px-1 text-xs text-slate-400">prompt v{result.prompt_version}</p>
           )}
