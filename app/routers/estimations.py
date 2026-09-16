@@ -7,8 +7,9 @@ import json
 
 from sse_starlette.sse import EventSourceResponse
 from fastapi import APIRouter, HTTPException
-from app.schemas.estimation import EstimationRequest, EstimationResponse
+from app.schemas.estimation import EstimationRequest, EstimationResponse, OpenSession
 from app.services.llm_service import LLMServiceError, generate_estimation, iter_estimation_chunks, start_estimation_stream
+from app.services.session_service import session_exists
 
 log = structlog.get_logger()
 
@@ -21,6 +22,10 @@ router = APIRouter(prefix="/api/v1", tags=["estimations"])
 @router.post("/estimate")
 def create_estimation(request: EstimationRequest) -> EstimationResponse:
     """Receive a meeting transcription and return a software project estimation."""
+
+    if not session_exists(request.session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+
     try:
         result = generate_estimation(request)
     except LLMServiceError as exc:
@@ -33,6 +38,10 @@ def create_estimation(request: EstimationRequest) -> EstimationResponse:
 # en dos caracteres para que quepa en una sola linea 
 @router.post("/estimate/stream")
 def create_estimation_stream(request: EstimationRequest) -> EventSourceResponse:
+
+    if not session_exists(request.session_id):
+        raise HTTPException(status_code=404, detail="session not found")
+
     response, cache_hit = start_estimation_stream(request)
 
     def event_stream():  # no ejecuta codigo solo crea el objeto para empezar y se detiene (yield)

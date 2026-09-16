@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import estimations
+from app.routers import estimations, sessions
 
 settings = get_settings()
 
@@ -76,6 +76,7 @@ app.add_middleware(
 )
 
 app.include_router(estimations.router)
+app.include_router(sessions.router)
 
 # A health endpoint that returns the service status, version, and environment.
 # Useful for infrastructure health checks.

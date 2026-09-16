@@ -23,6 +23,7 @@ class EstimationRequest(BaseModel):
     project_type: ProjectType = Field(default=ProjectType.web_application, description="Coarse-grained project category.")
     detail_level: DetailLevel = Field(default=DetailLevel.detailed, description="How deep the estimation should go.")
     output_format: OutputFormat = Field(default=OutputFormat.phases_table, description="Shape of the rendered estimation.")
+    session_id: str = Field(..., description="Identifier returned by POST /sessions")
 
 
 class TokenUsage(BaseModel):
@@ -60,3 +61,7 @@ class EstimationResponse(BaseModel):
     usage: TokenUsage
     prompt_version: str = Field(..., description="Version of the prompt template used")
     cache_hit: bool = Field(..., description="Whether the LLM response was serverd from cache")
+
+class OpenSession(BaseModel):
+    """Create a new session"""
+    session_id: str
