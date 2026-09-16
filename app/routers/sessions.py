@@ -2,7 +2,7 @@ import structlog
 from fastapi import APIRouter
 
 from app.schemas.estimation import OpenSession
-from app.services.session_service import create_session
+from app.services.sessions import create_session
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["sessions"])

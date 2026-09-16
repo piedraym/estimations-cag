@@ -9,7 +9,7 @@ from sse_starlette.sse import EventSourceResponse
 from fastapi import APIRouter, HTTPException
 from app.schemas.estimation import EstimationRequest, EstimationResponse, OpenSession
 from app.services.llm_service import LLMServiceError, generate_estimation, iter_estimation_chunks, start_estimation_stream
-from app.services.session_service import session_exists
+from app.services.sessions import session_exists
 
 log = structlog.get_logger()
 
