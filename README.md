@@ -19,6 +19,7 @@ AI-powered software estimation service that converts meeting transcriptions into
 - **Redis** — exact-match response cache
 - **sse-starlette** — Server-Sent Events for streaming responses
 - **Jinja2** — versioned prompt templates
+- **pypdf** — text extraction from PDF attachments
 - **React (Vite)** — form-based UI, in `frontend/`
 - **Pydantic** — request/response validation
 - **structlog** — structured logging
@@ -31,11 +32,14 @@ app/
 ├── main.py              # FastAPI app, middleware, lifespan, Redis cache setup
 ├── config.py            # Settings loaded from environment variables
 ├── routers/
-│   └── estimations.py   # POST /api/v1/estimate and /api/v1/estimate/stream endpoints
+│   ├── estimations.py   # POST /api/v1/estimate and /api/v1/estimate/stream endpoints
+│   └── sessions.py      # POST /api/v1/sessions and /api/v1/sessions/{session_id}/estimate (with attachments)
 ├── schemas/
 │   └── estimation.py    # Request and response models
 ├── services/
-│   └── llm_service.py   # LLM calls via LiteLLM (sync + streaming, with caching)
+│   ├── llm_service.py   # LLM calls via LiteLLM (sync + streaming, with caching)
+│   ├── sessions.py      # In-memory session state: conversation history + project metadata
+│   └── attachments.py   # Extracts text from uploaded attachments (.pdf, .txt, .md)
 └── prompts/
     ├── loader.py         # Renders versioned Jinja2 templates
     ├── examples.py       # Reference estimations injected into the system prompt
@@ -133,6 +137,20 @@ UI available at `http://localhost:5173`
 
 ## API
 
+### `POST /api/v1/sessions`
+
+Creates a new conversation session. Call this once before any `/estimate` request and reuse the returned `session_id` for every subsequent call in the same conversation.
+
+**Response**
+
+```json
+{ "session_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+```
+
+```bash
+curl -X POST http://localhost:8000/api/v1/sessions
+```
+
 ### `POST /api/v1/estimate`
 
 Generates a software project estimation from a meeting transcription.
@@ -142,6 +160,7 @@ Generates a software project estimation from a meeting transcription.
 ```json
 {
   "transcription": "Meeting text describing the project requirements (min 50 characters)",
+  "session_id": "the UUID returned by POST /api/v1/sessions",
   "project_type": "web_application",
   "detail_level": "detailed",
   "output_format": "phases_table"
@@ -169,10 +188,13 @@ Generates a software project estimation from a meeting transcription.
 **Example**
 
 ```bash
+SESSION_ID=$(curl -s -X POST http://localhost:8000/api/v1/sessions | jq -r .session_id)
+
 curl -X POST http://localhost:8000/api/v1/estimate \
   -H "Content-Type: application/json" \
   -d '{
-    "transcription": "The client needs a landing page with a contact form, HubSpot CRM integration, and a blog with a WYSIWYG editor. The design is ready in Figma. Deadline is 4 weeks."
+    "transcription": "The client needs a landing page with a contact form, HubSpot CRM integration, and a blog with a WYSIWYG editor. The design is ready in Figma. Deadline is 4 weeks.",
+    "session_id": "'"$SESSION_ID"'"
   }'
 ```
 
@@ -188,8 +210,25 @@ The response includes an `X-Cache-Hit` header (`"true"` or `"false"`) indicating
 curl -N -X POST http://localhost:8000/api/v1/estimate/stream \
   -H "Content-Type: application/json" \
   -d '{
-    "transcription": "The client needs a landing page with a contact form, HubSpot CRM integration, and a blog with a WYSIWYG editor. The design is ready in Figma. Deadline is 4 weeks."
+    "transcription": "The client needs a landing page with a contact form, HubSpot CRM integration, and a blog with a WYSIWYG editor. The design is ready in Figma. Deadline is 4 weeks.",
+    "session_id": "'"$SESSION_ID"'"
   }'
+```
+
+### `POST /api/v1/sessions/{session_id}/estimate`
+
+Same as `/api/v1/estimate`, but accepts `multipart/form-data` with optional file attachments. Their extracted text is appended to the transcript (separated by `--- attachment: <filename> ---`) before it reaches the prompt.
+
+Supported attachment types: `.pdf`, `.txt`, `.md`. Unsupported types, unreadable PDFs, or PDFs with no extractable text (e.g. scanned documents) return `422` with a descriptive error.
+
+**Why this approach (and not a provider Files API):** stays simple, works with any provider/model without coupling to one provider's specific file-upload API, and fits naturally with LiteLLM, which already abstracts the provider (including fallback) — a provider-specific Files API would break that abstraction.
+
+**Example**
+
+```bash
+curl -X POST http://localhost:8000/api/v1/sessions/$SESSION_ID/estimate \
+  -F "transcript=The client needs a landing page with a contact form, HubSpot CRM integration, and a blog with a WYSIWYG editor." \
+  -F "attachments=@requirements.pdf"
 ```
 
 ### `GET /health`
